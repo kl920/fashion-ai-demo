@@ -111,7 +111,7 @@ async def generate_image(
             # Call IDM-VTON via Replicate API for virtual try-on
             with open(model_path, "rb") as model_f, open(garment_path, "rb") as garment_f:
                 output = replicate.run(
-                    "yisol/idm-vton:c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4",
+                    "cuuupid/idm-vton:906425dbca90663ff5427624839572cc56ea7d380343d13e2a4c4b09d3f0c30f",
                     input={
                         "human_img": model_f,
                         "garm_img": garment_f,
