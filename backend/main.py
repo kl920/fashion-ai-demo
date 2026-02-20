@@ -108,13 +108,14 @@ async def generate_image(
             model_path = model_file.name
         
         try:
-            # Call OOTDiffusion via Replicate API for virtual try-on
+            # Call IDM-VTON via Replicate API for virtual try-on
             with open(model_path, "rb") as model_f, open(garment_path, "rb") as garment_f:
                 output = replicate.run(
-                    "viktorfa/oot_diffusion",
+                    "yisol/idm-vton:c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4",
                     input={
-                        "model_image": model_f,
-                        "garment_image": garment_f
+                        "human_img": model_f,
+                        "garm_img": garment_f,
+                        "garment_des": "clothing"
                     }
                 )
             
