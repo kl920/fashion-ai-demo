@@ -1,6 +1,6 @@
 """
 Fashion AI Demo - Backend API
-Uses Replicate API for AI image generation with garment transfer
+Uses Replicate IDM-VTON for virtual try-on with garment transfer
 """
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
@@ -13,6 +13,7 @@ import base64
 import httpx
 from pydantic import BaseModel
 import io
+import tempfile
 
 app = FastAPI(title="Fashion AI Demo API")
 
@@ -27,6 +28,16 @@ app.add_middleware(
 
 # Configuration
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
+
+# Stock model images for virtual try-on
+STOCK_MODELS = {
+    "female_standing": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=768&h=1024&fit=crop",
+    "female_casual": "https://images.unsplash.com/photo-1541216970279-affbfdd55aa8?w=768&h=1024&fit=crop",
+    "female_walking": "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=768&h=1024&fit=crop",
+    "male_standing": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=768&h=1024&fit=crop",
+    "male_casual": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=768&h=1024&fit=crop",
+    "male_walking": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=768&h=1024&fit=crop",
+}
 
 class GenerationRequest(BaseModel):
     """Request model for image generation"""
@@ -54,14 +65,14 @@ async def generate_image(
     style: str = Form("commercial")
 ):
     """
-    Generate fashion model image with uploaded garment
+    Generate virtual try-on image with uploaded garment using IDM-VTON
     
     Args:
         garment_image: Image file of the garment
-        model_type: Type of model (male/female/diverse)
-        pose: Model pose (standing/sitting/walking)
-        background: Background setting (studio_white/outdoor/urban)
-        style: Photography style (commercial/editorial/casual)
+        model_type: Type of model (male/female)
+        pose: Model pose (standing/casual/walking/sitting/hands_in_pockets)
+        background: Background setting (not used in IDM-VTON, for future)
+        style: Photography style (not used in IDM-VTON, for future)
     
     Returns:
         JSON with generated image URL and metadata
@@ -74,30 +85,48 @@ async def generate_image(
         )
     
     try:
-        # Read uploaded image
-        image_bytes = await garment_image.read()
+        # Read uploaded garment image
+        garment_bytes = await garment_image.read()
         
-        # Convert to base64 for API
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-        image_data_uri = f"data:image/jpeg;base64,{image_base64}"
+        # Select appropriate model image based on model_type and pose
+        model_key = f"{model_type}_{pose}" if f"{model_type}_{pose}" in STOCK_MODELS else f"{model_type}_standing"
+        model_image_url = STOCK_MODELS.get(model_key, STOCK_MODELS["female_standing"])
         
-        # Build prompt based on parameters
-        prompt = build_prompt(model_type, pose, background, style)
+        # Download model image
+        async with httpx.AsyncClient() as client:
+            model_response = await client.get(model_image_url)
+            model_bytes = model_response.content
         
-        # Call Replicate API for image generation
-        # Using Flux or SDXL with ControlNet for better garment transfer
+        # Save to temporary files for Replicate
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as garment_file:
+            garment_file.write(garment_bytes)
+            garment_path = garment_file.name
+            
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as model_file:
+            model_file.write(model_bytes)
+            model_path = model_file.name
+        
+        # Determine garment category (top/upper_body as default)
+        category = "upper_body"  # Could be enhanced with AI detection
+        
+        # Generate description
+        garment_description = generate_garment_description(style)
+        
+        # Call IDM-VTON via Replicate API
         output = replicate.run(
-            "black-forest-labs/flux-dev",
+            "cuuupid/idm-vton",
             input={
-                "prompt": prompt,
-                "guidance": 3.5,
-                "num_outputs": 1,
-                "aspect_ratio": "3:4",
-                "output_format": "jpg",
-                "output_quality": 90,
-                "num_inference_steps": 28,
+                "garm_img": open(garment_path, "rb"),
+                "human_img": open(model_path, "rb"),
+                "garment_des": garment_description,
+                "category": category,
+                "steps": 30
             }
         )
+        
+        # Clean up temporary files
+        os.unlink(garment_path)
+        os.unlink(model_path)
         
         # Extract output URL
         if isinstance(output, list) and len(output) > 0:
@@ -111,62 +140,43 @@ async def generate_image(
             "parameters": {
                 "model_type": model_type,
                 "pose": pose,
-                "background": background,
-                "style": style
-            },
-            "prompt": prompt
+                "category": category,
+                "description": garment_description
+            }
         })
         
     except Exception as e:
+        # Clean up on error
+        try:
+            if 'garment_path' in locals():
+                os.unlink(garment_path)
+            if 'model_path' in locals():
+                os.unlink(model_path)
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 
-def build_prompt(model_type: str, pose: str, background: str, style: str) -> str:
-    """
-    Build detailed prompt for AI generation
-    """
-    
-    # Model descriptor
-    model_desc = {
-        "female": "professional female fashion model, athletic build, confident expression",
-        "male": "professional male fashion model, athletic build, confident expression",
-        "diverse": "professional fashion model, diverse ethnicity, athletic build, confident expression"
-    }.get(model_type, "professional fashion model")
-    
-    # Pose descriptor
-    pose_desc = {
-        "standing": "standing straight, arms naturally at sides, direct eye contact with camera",
-        "casual": "casual relaxed pose, slight hip shift, natural stance",
-        "walking": "mid-walk pose, one foot forward, natural movement",
-        "sitting": "sitting pose, legs crossed, elegant posture",
-        "hands_in_pockets": "standing with hands in pockets, casual confident pose"
-    }.get(pose, "standing naturally")
-    
-    # Background descriptor
-    bg_desc = {
-        "studio_white": "clean white photography studio background, professional lighting setup",
-        "studio_grey": "neutral grey photography studio background, soft shadows",
-        "outdoor": "natural outdoor setting, soft natural daylight, blurred background",
-        "urban": "urban street background, city setting, shallow depth of field",
-        "minimal": "minimal abstract background, geometric shapes, modern aesthetic"
-    }.get(background, "white studio background")
-    
-    # Style descriptor
-    style_desc = {
-        "commercial": "commercial fashion photography style, clean professional lighting, sharp focus",
-        "editorial": "editorial fashion photography, dramatic lighting, high contrast, artistic",
-        "casual": "lifestyle photography style, natural lighting, candid feel",
-        "luxury": "luxury brand photography, sophisticated lighting, premium aesthetic"
-    }.get(style, "commercial photography style")
-    
-    prompt = f"""Professional high-quality fashion photograph, {style_desc}.
-{model_desc}, {pose_desc}.
-Setting: {bg_desc}.
-Full body shot, centered composition, perfect focus on model and garment.
-Professional photography, Canon EOS 5D Mark IV, 85mm f/1.8 lens, natural skin tones.
-Photorealistic, high detail, 8K quality, magazine quality photography."""
-    
-    return prompt
+def generate_garment_description(style: str) -> str:
+    """Generate appropriate garment description based on style"""
+    descriptions = {
+        "commercial": "stylish modern clothing piece",
+        "editorial": "high fashion designer garment",
+        "casual": "comfortable casual wear",
+        "luxury": "premium luxury fashion item"
+    }
+    return descriptions.get(style, "fashionable clothing item")
+
+
+def generate_garment_description(style: str) -> str:
+    """Generate appropriate garment description based on style"""
+    descriptions = {
+        "commercial": "stylish modern clothing piece",
+        "editorial": "high fashion designer garment",
+        "casual": "comfortable casual wear",
+        "luxury": "premium luxury fashion item"
+    }
+    return descriptions.get(style, "fashionable clothing item")
 
 
 @app.post("/upload-garment")
