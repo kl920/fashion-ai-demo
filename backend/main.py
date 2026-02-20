@@ -29,14 +29,14 @@ app.add_middleware(
 # Configuration
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
 
-# Stock model images for virtual try-on
+# Stock model images for virtual try-on (using reliable public URLs)
 STOCK_MODELS = {
-    "female_standing": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=768&h=1024&fit=crop",
-    "female_casual": "https://images.unsplash.com/photo-1541216970279-affbfdd55aa8?w=768&h=1024&fit=crop",
-    "female_walking": "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=768&h=1024&fit=crop",
-    "male_standing": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=768&h=1024&fit=crop",
-    "male_casual": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=768&h=1024&fit=crop",
-    "male_walking": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=768&h=1024&fit=crop",
+    "female_standing": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
+    "female_casual": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
+    "female_walking": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
+    "male_standing": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
+    "male_casual": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
+    "male_walking": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
 }
 
 class GenerationRequest(BaseModel):
@@ -93,58 +93,73 @@ async def generate_image(
         model_image_url = STOCK_MODELS.get(model_key, STOCK_MODELS["female_standing"])
         
         # Download model image
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             model_response = await client.get(model_image_url)
+            model_response.raise_for_status()
             model_bytes = model_response.content
         
         # Save to temporary files for Replicate
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as garment_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg", mode='wb') as garment_file:
             garment_file.write(garment_bytes)
             garment_path = garment_file.name
             
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as model_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png", mode='wb') as model_file:
             model_file.write(model_bytes)
             model_path = model_file.name
         
-        # Call OOTDiffusion via Replicate API for virtual try-on
-        output = replicate.run(
-            "viktorfa/oot_diffusion",
-            input={
-                "model_image": open(model_path, "rb"),
-                "garment_image": open(garment_path, "rb")
-            }
-        )
-        
-        # Clean up temporary files
-        os.unlink(garment_path)
-        os.unlink(model_path)
-        
-        # Extract output URL
-        if isinstance(output, list) and len(output) > 0:
-            image_url = output[0]
-        else:
-            image_url = str(output)
-        
-        return JSONResponse({
-            "success": True,
-            "image_url": image_url,
-            "parameters": {
-                "model_type": model_type,
-                "pose": pose,
-                "model_key": model_key
-            }
-        })
+        try:
+            # Call OOTDiffusion via Replicate API for virtual try-on
+            with open(model_path, "rb") as model_f, open(garment_path, "rb") as garment_f:
+                output = replicate.run(
+                    "viktorfa/oot_diffusion",
+                    input={
+                        "model_image": model_f,
+                        "garment_image": garment_f
+                    }
+                )
+            
+            # Extract output URL from FileOutput or list
+            if isinstance(output, list) and len(output) > 0:
+                image_url = str(output[0])
+            else:
+                image_url = str(output)
+            
+            return JSONResponse({
+                "success": True,
+                "image_url": image_url,
+                "parameters": {
+                    "model_type": model_type,
+                    "pose": pose,
+                    "model_key": model_key
+                }
+            })
+        finally:
+            # Clean up temporary files
+            try:
+                os.unlink(garment_path)
+            except:
+                pass
+            try:
+                os.unlink(model_path)
+            except:
+                pass
         
     except Exception as e:
         # Clean up on error
         try:
-            if 'garment_path' in locals():
+            if 'garment_path' in locals() and os.path.exists(garment_path):
                 os.unlink(garment_path)
-            if 'model_path' in locals():
+        except:
+            pass
+        try:
+            if 'model_path' in locals() and os.path.exists(model_path):
                 os.unlink(model_path)
         except:
             pass
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+        
+        import traceback
+        error_detail = f"Generation failed: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
 
 def generate_garment_description(style: str) -> str:
