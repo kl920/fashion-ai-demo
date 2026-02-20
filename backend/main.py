@@ -29,14 +29,16 @@ app.add_middleware(
 # Configuration
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
 
-# Stock model images for virtual try-on (using reliable public URLs)
+# Stock model images for virtual try-on (using Pexels free images)
 STOCK_MODELS = {
-    "female_standing": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "female_casual": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "female_walking": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "male_standing": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "male_casual": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "male_walking": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
+    # Female models with different poses
+    "female_standing": "https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?w=768&h=1024&fit=crop",
+    "female_casual": "https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?w=768&h=1024&fit=crop",
+    "female_walking": "https://images.pexels.com/photos/1024311/pexels-photo-1024311.jpeg?w=768&h=1024&fit=crop",
+    # Male models with different poses  
+    "male_standing": "https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?w=768&h=1024&fit=crop",
+    "male_casual": "https://images.pexels.com/photos/1516680/pexels-photo-1516680.jpeg?w=768&h=1024&fit=crop",
+    "male_walking": "https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?w=768&h=1024&fit=crop",
 }
 
 class GenerationRequest(BaseModel):
