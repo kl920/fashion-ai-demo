@@ -1,6 +1,6 @@
 """
 Fashion AI Demo - Backend API
-Uses Replicate IDM-VTON for virtual try-on with garment transfer
+Uses Replicate OOTDiffusion for virtual try-on with garment transfer
 """
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
@@ -65,14 +65,14 @@ async def generate_image(
     style: str = Form("commercial")
 ):
     """
-    Generate virtual try-on image with uploaded garment using IDM-VTON
+    Generate virtual try-on image with uploaded garment using OOTDiffusion
     
     Args:
         garment_image: Image file of the garment
         model_type: Type of model (male/female)
         pose: Model pose (standing/casual/walking/sitting/hands_in_pockets)
-        background: Background setting (not used in IDM-VTON, for future)
-        style: Photography style (not used in IDM-VTON, for future)
+        background: Background setting (not used in OOTDiffusion, for future)
+        style: Photography style (not used in OOTDiffusion, for future)
     
     Returns:
         JSON with generated image URL and metadata
@@ -106,21 +106,12 @@ async def generate_image(
             model_file.write(model_bytes)
             model_path = model_file.name
         
-        # Determine garment category (top/upper_body as default)
-        category = "upper_body"  # Could be enhanced with AI detection
-        
-        # Generate description
-        garment_description = generate_garment_description(style)
-        
-        # Call IDM-VTON via Replicate API
+        # Call OOTDiffusion via Replicate API for virtual try-on
         output = replicate.run(
-            "cuuupid/idm-vton",
+            "viktorfa/oot_diffusion",
             input={
-                "garm_img": open(garment_path, "rb"),
-                "human_img": open(model_path, "rb"),
-                "garment_des": garment_description,
-                "category": category,
-                "steps": 30
+                "model_image": open(model_path, "rb"),
+                "garment_image": open(garment_path, "rb")
             }
         )
         
@@ -140,8 +131,7 @@ async def generate_image(
             "parameters": {
                 "model_type": model_type,
                 "pose": pose,
-                "category": category,
-                "description": garment_description
+                "model_key": model_key
             }
         })
         
@@ -155,17 +145,6 @@ async def generate_image(
         except:
             pass
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
-
-
-def generate_garment_description(style: str) -> str:
-    """Generate appropriate garment description based on style"""
-    descriptions = {
-        "commercial": "stylish modern clothing piece",
-        "editorial": "high fashion designer garment",
-        "casual": "comfortable casual wear",
-        "luxury": "premium luxury fashion item"
-    }
-    return descriptions.get(style, "fashionable clothing item")
 
 
 def generate_garment_description(style: str) -> str:
