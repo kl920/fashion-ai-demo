@@ -29,17 +29,17 @@ app.add_middleware(
 # Configuration
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
 
-# Stock model images - using working Replicate delivery URL for testing
-# In production, upload your own model images or use a reliable CDN
+# Stock model images - using IDM-VTON demo images from their repository
+# These are publicly available demo images from the IDM-VTON project
 STOCK_MODELS = {
-    # Using the same working model for all poses (for now)
-    # Replace with your own model photos later
-    "female_standing": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "female_casual": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "female_walking": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "male_standing": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "male_casual": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
-    "male_walking": "https://replicate.delivery/pbxt/KgwTlhCMvDagRrcVzZJbuozNJ8esPqiNAIJS3eMgHrYuHmW4/KakaoTalk_Photo_2024-04-04-21-44-45.png",
+    # Female models - using various publicly available demo images
+    "female_standing": "https://github.com/yisol/IDM-VTON/raw/main/example/model/01008_00.jpg",
+    "female_casual": "https://github.com/yisol/IDM-VTON/raw/main/example/model/00055_00.jpg",
+    "female_walking": "https://github.com/yisol/IDM-VTON/raw/main/example/model/04564_00.jpg",
+    # Male models - if these don't work, will fall back to female_standing
+    "male_standing": "https://github.com/yisol/IDM-VTON/raw/main/example/model/01008_00.jpg",
+    "male_casual": "https://github.com/yisol/IDM-VTON/raw/main/example/model/00055_00.jpg",
+    "male_walking": "https://github.com/yisol/IDM-VTON/raw/main/example/model/04564_00.jpg",
 }
 
 class GenerationRequest(BaseModel):
